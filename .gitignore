@@ -1,5 +1,5 @@
 .DS_Store
-pynb_checkpoints/*
+.ipynb_checkpoints/*
 data/*
 notebooks/*
 *.pyc
