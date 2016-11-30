@@ -1,0 +1,5 @@
+.DS_Store
+pynb_checkpoints/*
+data/*
+notebooks/*
+*.pyc
