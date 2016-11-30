@@ -11,7 +11,24 @@ from scikits.talkbox.features.mfcc import trfbank
 import wave
 import os
 
-def create_feature(dir0, dir1, nframe=1, threshold=0.6, twin=25, tover=10, nceps=0, tmax=120, verbose=False):
+def save_nn_output(rootdir, model, sess, nframe, threshold, subdirs=None, verbose=False):
+    if not subdirs:
+        subdirs = ['sober', 'drunk']
+    for sdir in subdirs:
+        dirpath = os.path.join(rootdir, sdir)
+        newpath = os.path.join(rootdir, 'nn_features', sdir)
+        if not os.path.exists(newpath):
+            os.makedirs(newpath)
+        files = [f for f in os.listdir(dirpath) if f.endswith(".wav")]
+        for filename in files:
+            if verbose:
+                print filename
+            X = mel_spectrogram(os.path.join(dirpath, filename), nframe, threshold, tmax=10000)
+            nnf = np.hstack((X, model.hidden_out(sess, X, 1), model.hidden_out(sess, X, 2)))
+            np.savetxt(os.path.join(newpath, filename[:-4]+".csv"), nnf, fmt="%.4f", delimiter=",")
+
+
+def create_feature(dir0, dir1, nframe=1, threshold=0.06, twin=25, tover=10, nceps=0, tmax=120, verbose=False):
     features = []
     labels = []
     # waves = []
@@ -34,7 +51,7 @@ def create_feature(dir0, dir1, nframe=1, threshold=0.6, twin=25, tover=10, nceps
     # ts = np.concatenate(waves, axis=0)
     return X, y
 
-def create_feature_list(dir0, dir1, nframe=1, threshold=0.6, twin=25, tover=10, nceps=0, tmax=120, maxlen=100, verbose=False):
+def create_feature_list(dir0, dir1, nframe=1, threshold=0.06, twin=25, tover=10, nceps=0, tmax=120, maxlen=100, verbose=False):
     features = []
     labels = []
     files0 = [f for f in os.listdir(dir0) if f.endswith(".wav")]
@@ -69,18 +86,18 @@ def mel_spectrogram(filename, nframe=1, threshold=0.6, twin=25, tover=10, nceps=
         _, mel, ceps = mfcc(wav, nfft, nfft, fs, nceps, over)
         feature = ceps
         spec = mel
+        for i in range(nframe - 1):
+            feature = np.concatenate((feature[:-1, :], ceps[i + 1:, :]), axis=1)
+            spec = np.concatenate((spec[:-1, :], mel[i + 1:, :]), axis=1)
+        energy = np.mean(10 ** spec, axis=1)
     else:
         _, mel = mfcc(wav, nfft, nfft, fs, 0, over)
         feature = mel
-        spec = mel
-
-
-    for i in range(nframe - 1):
-        feature = np.concatenate((feature[:-1, :], ceps[i + 1:, :]), axis=1)
-        spec = np.concatenate((spec[:-1, :], mel[i + 1:, :]), axis=1)
+        for i in range(nframe - 1):
+            feature = np.concatenate((feature[:-1, :], mel[i + 1:, :]), axis=1)
+        energy = np.mean(10 ** feature, axis=1)
 
     nbefore = feature.shape[0]
-    energy = np.mean(10**spec, axis=1)
     feature = feature[energy > threshold]
 
     if verbose:
